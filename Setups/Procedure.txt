@@ -1,0 +1,49 @@
+USE [MSIL_HDFC]
+GO
+/****** Object:  StoredProcedure [dbo].[ProcessInvoiceRecievedUpload]    Script Date: 27-07-2026 14:02:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[ProcessInvoiceRecievedUpload]
+   @Task NVARCHAR(50),
+   @FileId INT,
+    @LoginId NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+	if (@Task='GetInvoice_Received')
+	begin 
+		 select (SELECT ISNULL(MAX(convert(bigint,Invoice_Rec_ID)), 0) FROM Invoice_Received) + 
+         ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS NewInvoice_Rec_ID, [Sr_No], [Invoice_Number], [Invoice_Amount], [Currency], [Vehical_ID], [DueDate], [Dealer_Name],
+	     [Dealer_Address1], [Dealer_City], [Transporter_Name], [Transport_Number], [Transport_Date], [Dealer_Code], [Transporter_Code], [Dealer_Address2], 
+	     [Dealer_Address3], [Dealer_Address4], IMEX_DEAL_NUMBER, Physical_Invoice_Received_Date, Trade_OPs_Remarks, @LoginId from Invoice 
+	     where convert(varchar(30),Invoice_data_Received_Date,103)=convert(varchar(30), getdate(),103) and (Invoice_Status='' or Invoice_Status is null)
+   
+   end
+
+
+		if (@Task='InsertInvoice_Received')
+	begin
+	     insert into Invoice_Received ([Invoice_Rec_ID], [Sr_No], [Invoice_Number], [Invoice_Amount], [Currency], [Vehical_ID], [DueDate], [Dealer_Name],
+	     [Dealer_Address1], [Dealer_City], [Transporter_Name], [Transport_Number], [Transport_Date], [Dealer_Code], [Transporter_Code], [Dealer_Address2], 
+	     [Dealer_Address3], [Dealer_Address4], [Trade_RefNo], [Physical_Received_date], [Remarks], [LoginID])
+	     
+		 select (SELECT ISNULL(MAX(convert(bigint,Invoice_Rec_ID)), 0) FROM Invoice_Received) + 
+         ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS NewInvoice_Rec_ID, [Sr_No], [Invoice_Number], [Invoice_Amount], [Currency], [Vehical_ID], [DueDate], [Dealer_Name],
+	     [Dealer_Address1], [Dealer_City], [Transporter_Name], [Transport_Number], [Transport_Date], [Dealer_Code], [Transporter_Code], [Dealer_Address2], 
+	     [Dealer_Address3], [Dealer_Address4], IMEX_DEAL_NUMBER, Physical_Invoice_Received_Date, Trade_OPs_Remarks, @LoginId from Invoice 
+	     where convert(varchar(30),Invoice_data_Received_Date,103)=convert(varchar(30), getdate(),103) and (Invoice_Status='' or Invoice_Status is null)
+   select @@ROWCOUNT
+   UPDATE Invoice SET     TradeopsFileID = @FileId,         F7_MIS = 0,
+						  LoginID_TradeOps = @LoginId,      Invoice_Status = 'PHYSICAL INV REC',
+						  IMEX_DEAL_NUMBER = '-',           StepDate =  CONVERT(varchar, GETDATE(), 23) , Trade_OPs_Remarks = 'Y'
+    FROM Invoice where convert(varchar(30),Invoice_data_Received_Date,103)=convert(varchar(30), getdate(),103) and 
+	(Invoice_Status='' or Invoice_Status is null)
+
+		  select 'Updated Successfully' 
+		  
+   end
+
+
+END
