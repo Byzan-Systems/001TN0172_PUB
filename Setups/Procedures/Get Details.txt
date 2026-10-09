@@ -1,0 +1,547 @@
+USE [MSIL_HDFC]
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GetDetails]    Script Date: 25-09-2026 12:14:36 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROCEDURE [dbo].[SP_GetDetails] 
+@Task varchar(max),
+@Search1 varchar(100),
+@Search2 varchar(100),
+@Search3 varchar(100),
+@Search4 varchar(100),
+@Search5 varchar(100),
+@Search6 varchar(100),
+@Search7 varchar(100)
+	
+AS
+BEGIN
+
+	SET NOCOUNT ON
+	 if(@Task='Get_DealerDetailsColumns') --need to be in sequence used for DRC mail format 
+	 begin
+         SELECT distinct 
+		 Order_Desc.DO_Number [Order No], Invoice.Invoice_Number [Invoice No],convert(varchar(30), Invoice.Transport_Date,103) 	[Invoice Date], 
+		 Order_Invoice.Order_Inv_Amount [Amt Received(INR)], convert(varchar(30), Invoice.Payment_Received_Date,103) [Amt Received Date],
+		 Invoice.Vehical_ID [Vehicle Identification no],CashOps_Upload.FNCR_name [Financier Name]
+		  FROM Invoice 
+		
+		INNER JOIN Order_Invoice ON Invoice.Invoice_Number = Order_Invoice.Order_Inv_Number INNER JOIN Order_Desc ON 
+		 Order_Invoice.Order_ID = Order_Desc.Order_ID inner join CashOps_Upload on 
+		CashOps_Upload.Virtual_Account =Order_Desc.DO_Number WHERE (Order_Desc.Order_Status = 'Payment Received') AND 
+		 (Invoice.Invoice_Status = 'Payment received on') AND (Invoice.Utr_Number = @Search1) and 
+		 Order_Number=@Search2
+
+     end
+	
+	if(@Task='Get_OI_DetailsAsDO')
+	 begin
+	  
+            SELECT Cash_ops_Date, I.Utr_Number, O.Dealer_Code, O.Dealer_Destination_Code, O.Dealer_Outlet_Code,
+            C.Transaction_Amount, C.NEFT_RTGS_BT_ID, C.CashOps_FileType, FNCR_Virtual_Account, C.IFSC_code, 
+            O.DO_Number, I.Invoice_Number FROM (CashOps_Upload C INNER JOIN Invoice I ON C.Cash_Ops_ID = I.Cash_Ops_ID)
+            INNER JOIN Order_Desc O ON (C.Cash_Ops_ID = O.Cash_Ops_ID) AND (I.Cash_Ops_ID = O.Cash_Ops_ID)
+            WHERE (I.F3_MIS = 1 ) AND (C.Payment_Status = 'CREDIT MSIL') AND O.DO_Number =@Search1 order by I.Utr_Number 
+          
+	  end
+	if(@Task='GetOrderDetailsAsStatus')
+	 begin
+             select UTR_No,Virtual_Account from CashOps_Upload where Virtual_Account=@Search1 and  (Payment_Status='' or Payment_Status is NULL )
+			 --or not Payment_Status='CREDIT MSIL' or not Payment_Status='Rejected - Order Already Paid' or not Payment_Status='Rejected - Amount Mismatch')
+     end
+	 if(@Task='GetUniqueUTR')
+	 begin
+             select UTR_No,Virtual_Account from CashOps_Upload where UTR_No=@Search1 and not Payment_Status='Rejected - Amount Mismatch'
+     end
+	if(@Task='GetMaxOrderID_Rej')
+	 begin
+          select isnull(max(convert(int,Order_ID_Rej)),0) from [dbo].Order_Rejected 
+     end
+	 if(@Task='GetMaxIN VID_Rej')
+	 begin
+          (select isnull(max(convert(int,Ord_Inv_ID_Rej)),0)+1 from [dbo].Order_Invoice_Rejected )
+     end
+	   if(@Task='Get_MaxOrdInvoice')
+	 begin	
+	 declare @maxINV_RejID as int=(Select isnull(max(convert(int,Ord_Inv_ID)),0)+1  from Order_Invoice_Rejected )
+      declare @maxINV_ID as int=    (Select isnull(max(convert(int,Ord_Inv_ID)),0)+1  from Order_Invoice)
+	  SELECT  (SELECT MAX(Value)  FROM (VALUES (@maxINV_RejID), (@maxINV_ID)) AS v(Value)) AS MaxValue
+	  --select greatest(@maxINV_RejID,@maxINV_ID) as maxvalue
+            
+     end
+	if(@Task='GetMaxOrderID')
+	 begin
+	 declare @maxORD_RejID as int=(select isnull(max(convert(int,Order_ID)),0) from [dbo].Order_Rejected )
+      declare @maxORD_ID as int=    (select isnull(max(convert(int,Order_ID)),0) from [dbo].Order_Desc )
+	  SELECT  (SELECT MAX(Value)  FROM (VALUES (@maxORD_RejID), (@maxORD_ID)) AS v(Value)) AS MaxValue
+	  --select greatest(@maxORD_RejID,@maxORD_ID) as maxvalue
+     end
+	if(@Task='GetOrderDetailsAsper')
+	 begin
+             select * from Order_Desc where DO_Number=@Search1 
+     end
+	if(@Task='GetUTRDetailsForPaymentUpload')
+	 begin	   
+             select [Cash_Ops_ID], [FileID], [CashOps_FileType], [NEFT_RTGS_BT_ID],
+			  [Virtual_Account], [UTR_No], [Transaction_Amount], 
+			 [Transaction_status], [Payment_Status], [Attempt], [Cash_Ops_Date], [Cash_Ops_Time], [GEFO_Flag], [GEFO_Date], 
+			DR_Account_No,CR_Account_No, [LoginID], [EOD_MailFlag], [DRC_Generation], 
+			 [FNCR_Virtual_Account], [IFSC_code],
+			 [FNCR_code], [FNCR_Name] from CashOps_Upload where UTR_No=@Search1 and Virtual_Account=@Search2 
+     		
+	 end
+	 if(@Task='GetUTRDetails_withoutStatus')
+	 begin
+	 
+             select [Cash_Ops_ID], [FileID], [CashOps_FileType], [NEFT_RTGS_BT_ID],[Virtual_Account], [UTR_No], [Transaction_Amount],
+			 [Transaction_status], [Payment_Status], [Attempt], [Cash_Ops_Date], [Cash_Ops_Time], [GEFO_Flag], [GEFO_Date],
+			  [DR_Account_No], [CR_Account_No], [LoginID], [EOD_MailFlag], [DRC_Generation], [FNCR_Virtual_Account], [IFSC_code], [FNCR_code], [FNCR_Name] from CashOps_Upload where UTR_No=@Search1 and Virtual_Account=@Search2 and Transaction_Amount= @Search3 
+    
+	 end
+	if(@Task='GetUTRDetails')
+	 begin
+	  OPEN SYMMETRIC KEY MSIL_HDFC DECRYPTION BY PASSWORD = 'Hdfc@123456789';
+             select [Cash_Ops_ID], [FileID], [CashOps_FileType], [NEFT_RTGS_BT_ID],[Virtual_Account], [UTR_No], [Transaction_Amount], [Transaction_status], [Payment_Status], [Attempt], [Cash_Ops_Date], [Cash_Ops_Time], [GEFO_Flag], [GEFO_Date],CONVERT(NVARCHAR(MAX),DECRYPTBYKEY(CAST(CAST(convert(nvarchar(max),DR_Account_No) AS XML).value('.', 'VARBINARY(MAX)') AS VARBINARY(MAX)))) [DR_Account_No],CONVERT(NVARCHAR(MAX),DECRYPTBYKEY(CAST(CAST(convert(nvarchar(max),CR_Account_No) AS XML).value('.', 'VARBINARY(MAX)') AS VARBINARY(MAX)))) [CR_Account_No], [LoginID], [EOD_MailFlag], [DRC_Generation], [FNCR_Virtual_Account], [IFSC_code], [FNCR_code], [FNCR_Name] from CashOps_Upload where UTR_No=@Search1 and (Payment_Status is not Null or Payment_Status<>'') and (isnull(Attempt,0)<=3 or 
+			 Attempt <=3) and 
+			 (Payment_Status = 'Rejected - Amount Mismatch' or Payment_Status = 'Pending Credit' or Payment_Status = 'Rejected - Order Already Paid' or 
+			 Payment_Status = 'Payment Type Invalid' or Payment_Status = 'UTR No. Duplicate' or Payment_Status = 'CREDIT MSIL')
+			 	  CLOSE SYMMETRIC KEY MSIL_HDFC;           
+     end
+	if(@Task='GetFinancerCodeDetails')
+	 begin
+             select distinct FType from FinancerDetails where FType=@Search1 
+     end
+	if(@Task='Get_FinancerDetailsAsPerTypeIFSC')
+	 begin
+             Select * from FinancerDetails where FType=@Search1 and IFSCPart=@Search2 
+     end
+	 if(@Task='Get_FinancerDetailsAsPerType')
+	 begin
+              Select * from FinancerDetails where FType=@Search1
+     end
+	 if(@Task='Get_FinancerDetailsAsPer')
+	 begin
+	   if( @Search1='F')
+	     begin  
+                Select * from FinancerDetails where FType=@Search1 and IFSCPart=@Search2 
+         end
+		 else
+		 begin
+		    Select * from FinancerDetails where FType=@Search1
+		 end
+     end
+	if(@Task='Update_Order_NotRec_Report')
+	 begin	
+          SELECT * From Invoice WHERE (Invoice_Status = 'ORDER RECEIVED')
+     end
+	  	if(@Task='Update_Order_NotRec_Report')
+	 begin	
+          SELECT * From Invoice WHERE (Invoice_Status = 'PHYSICAL INV REC')
+     end
+	if(@Task='Update_Old_Invoice_Report')
+	 begin	
+          SELECT Invoice_Number From Invoice WHERE (Invoice_Status = 'PHYSICAL PENDING')
+     end
+	 	if(@Task='Update_Order_NotRec_Report')
+	 begin	
+           SELECT i.invoice_number as 'Invoice No',i.invoice_amount as 'Invoice Amount',CONVERT(VARCHAR(10),stepdate, 103) AS 'Physically Receipt Date',
+           CASE WHEN i.imex_deal_number IS NULL THEN '-' WHEN i.imex_deal_number IS NOT NULL THEN imex_deal_number END AS 'Trade Reference No'
+           ,CASE WHEN i.order_number IS NULL THEN '-' WHEN i.order_number IS NOT NULL THEN order_number END AS 'Delivery Order No',
+            i.dealer_code as 'Dealer Code',i.Dealer_Name as 'Dealer Name',i.Dealer_Address4 as 'Location' FROM InvoiceBackup
+			i Inner JOIN DO_desc d ON i.order_number=d.DO_Number where convert(date,d.DO_requested_date,103) between 
+			convert(varchar(10), getdate(),20)+' 00:00:01' and convert(varchar(10), getdate(),20)+' 23:59:59' and 
+			d.reason='Deleted Successfully'     
+	end
+     if(@Task='Get_order_DescRejectedAll')
+	 begin	
+       SELECT Order_Invoice.Ord_Inv_ID, Order_Invoice.Order_ID, Order_Invoice.Record_Identifier, Order_Invoice.Order_Inv_Number, 
+       Order_Invoice.Order_Inv_Amount , Order_Invoice.Order_Inv_Status FROM Order_Invoice INNER JOIN Order_Desc ON 
+       Order_Invoice.Order_ID = Order_Desc.Order_ID where  Ord_Rej_Flag=1 and Order_Invoice.Order_ID=@Search1 
+end
+	 if(@Task='Get_CheckingInvoice')
+	 begin	
+         SELECT * FROM Order_Invoice INNER JOIN Order_Desc ON Order_Invoice.Order_ID = Order_Desc.Order_ID WHERE 
+		 (Order_Invoice.Order_Inv_Status = 'Not Found') and Ord_Rej_Flag=0
+     end
+	 if(@Task='Get_order_DescRejected')
+	 begin	
+          SELECT * from order_Desc where Ord_Rej_Flag=1
+     end
+    if(@Task='Get_MaxOrder_Invoice')
+	 begin	
+            Select isnull(max(convert(int,Ord_Inv_ID)),0)+1  from Order_Invoice
+     end
+	    if(@Task='Get_Order_InvoiceAsPerInvoice')
+	 begin	
+    Select * from Invoice where Invoice_Number=@Search1 and Invoice_Status='PHYSICAL INV REC' 
+	and TradeOp_Selected_Invoice_Flag=1 
+     end
+	   if(@Task='Get_Order_InvoiceAsPerAmount')
+	 begin	
+    Select * from Invoice where Invoice_Number=@Search1 and Invoice_Status='PHYSICAL INV REC' 
+	and TradeOp_Selected_Invoice_Flag=1 AND (CAST(Invoice_Amount AS FLOAT)) = @Search2
+     end
+    if(@Task='Get_Order_InvoiceAsPer')
+	 begin	
+     Select * from Order_Invoice where Order_Inv_Number=@Search1
+     end
+	     if(@Task='Get_MaxOrder_desc')
+	 begin	
+     Select isnull(max(convert(int,Order_ID)),0)+1  from Order_Desc
+     end
+	 if(@Task='Get_MaxDO_desc')
+	 begin	
+     Select isnull(max(convert(int,Order_ID)),0)+1from DO_desc
+     end
+	    if(@Task='Get_InvoiceDetailsAsper')
+	 begin	
+     Select * from Invoice where Invoice_Number=@Search1 and Invoice_Status = 'Payment received on'
+     end
+	 if(@Task='Get_DO_DescAsOrd_ID')
+	 begin	
+     SELECT * from DO_Desc where Order_ID =@Search1
+     end
+     if(@Task='Get_DO_Desc_Details')
+	 begin	
+      SELECT * From Order_Desc WHERE DO_Number = @Search1 And Order_Status=@Search2
+     end
+     if(@Task='Get_Order_DescAsper')
+	 begin	
+      SELECT * From Order_Desc WHERE DO_Number = @Search1 And Order_Status=@Search2
+     end
+	if(@Task='Get_Order_Desc')
+	 begin	
+       SELECT * From Order_Desc WHERE  (DO_Number = @Search1)
+     end
+		if(@Task='Get_Order_Desc_Del')
+	 begin		
+         Select * from Order_Desc_Del where DO_Number=@Search1
+     end
+	if(@Task='Get_InvoiceCancelAsper')
+	 begin	
+         SELECT * From Invoice_cancel_desc WHERE invoice_number = @Search1 And Reason='Payment Received'
+     end
+			 if(@Task='Get_InvoiceAsper')
+	 begin	
+          Select * from Invoice where Invoice_Number=@Search1
+     end
+		if(@Task='Get_MIS3_Report')
+	 begin	
+           SELECT i.invoice_number as 'Invoice No',i.invoice_amount as 'Invoice Amount',CONVERT(VARCHAR(10),stepdate, 103) AS 'Physically Receipt Date',
+           CASE WHEN i.imex_deal_number IS NULL THEN '-' WHEN i.imex_deal_number IS NOT NULL THEN imex_deal_number END AS 'Trade Reference No'
+           ,CASE WHEN i.order_number IS NULL THEN '-' WHEN i.order_number IS NOT NULL THEN order_number END AS 'Delivery Order No',
+            i.dealer_code as 'Dealer Code',i.Dealer_Name as 'Dealer Name',i.Dealer_Address4 as 'Location' FROM InvoiceBackup
+			i Inner JOIN DO_desc d ON i.order_number=d.DO_Number where convert(date,d.DO_requested_date,103) between 
+			convert(varchar(10), getdate(),20)+' 00:00:01' and convert(varchar(10), getdate(),20)+' 23:59:59' and 
+			d.reason='Deleted Successfully'     
+	end
+		 if(@Task='Get_DupplicateFile')
+	 begin	
+          Select * from File_Desc where   Upper(FileName)  =@Search1
+     end
+	 if(@Task='Get_Payment_NotRec_Report')
+	 begin	
+          SELECT * From Invoice WHERE (Invoice_Status = 'ORDER RECEIVED')
+     end
+	  	if(@Task='Get_Order_NotRec_Report')
+	 begin	
+          SELECT * From Invoice WHERE (Invoice_Status = 'PHYSICAL INV REC')
+     end
+	if(@Task='Get_Old_Invoice_Report')
+	 begin	
+          SELECT Invoice_Number From Invoice WHERE (Invoice_Status = 'PHYSICAL PENDING' or Invoice_Status is null and IMEX_DEAL_NUMBER is null)
+     end
+	 if(@Task='Get_CashOPSDetails_F4')
+	 begin
+      SELECT cash_ops_date, Invoice.Utr_Number, Order_Desc.Dealer_Code, Order_Desc.Dealer_Destination_Code, 
+	  Order_Desc.Dealer_Outlet_Code,'TVP-NAG-RTGS-HDFC' AS TRANSACTION_Type, CashOps_Upload.Transaction_Amount, 
+	  CashOps_Upload.NEFT_RTGS_BT_ID,CashOps_Upload.CashOps_FileType, 'NA' AS Fix, 'V' AS Account_Type, 
+	  Order_Desc.Financier_Code, 'TT' AS Instrument_Type, 'OTH' AS Issuing_Bank,Order_Desc.DO_Number , 
+	  Invoice.Invoice_Number FROM CashOps_Upload INNER JOIN Invoice ON CashOps_Upload.Cash_Ops_ID = Invoice.Cash_Ops_ID 
+	  INNER JOIN Order_Desc ON CashOps_Upload.Cash_Ops_ID = Order_Desc.Cash_Ops_ID AND 
+	  Invoice.Cash_Ops_ID = Order_Desc.Cash_Ops_ID WHERE (Invoice.F4_MIS = 0 or Invoice.F4_MIS IS NULL) AND 
+	  (CashOps_Upload.Payment_Status = 'CREDIT MSIL') order by Invoice.Utr_Number
+	end
+	if(@Task='Get_SendInvoiceConfirmation')
+	 begin
+           Select * from File_Desc where File_Date=convert(varchar(20), getdate(),103) and EmailStatus=0     
+     end
+	 	 	if(@Task='Get_Order_Delete_Report2')
+	 begin
+            Select * from Order_Delete where Email_Flag=0
+     end
+	 	if(@Task='Get_SendInvoiceConfirmationDetails')
+	 begin
+           Select Invoice_data_Received_Date,* from Invoice where 
+		   convert(varchar(20),Invoice_data_Received_Date,103)=convert(varchar(20), getdate(),103)    
+     end
+		if(@Task='Get_Cancel_DO_Invoice_Report')
+	 begin
+        SELECT distinct do_number,invoice_number From invoice_cancel_desc WHERE (Reason ='Order and Invoice deleted successfully') and F2_MIS=0
+     end
+	if(@Task='Get_UnsucCancel_DO_Report')
+	 begin
+        SELECT DO_Number,Order_Amount From DO_desc WHERE (Reason ='Payment Received') and DO_Rej_Flag=1 and F2_MIS=0
+    end
+    if(@Task='Get_UnCancel_DO_Invoice_Report')
+	 begin
+        SELECT * From invoice_cancel_desc WHERE Reason ='Payment Received' and F2_MIS=0 and DO_number is not null    
+     end
+		if(@Task='Get_Cancel_DO_Details')
+	 begin
+        SELECT DO_Number,Order_Amount From DO_desc WHERE (Reason ='Deleted successfully') and F2_MIS=0	 
+		end
+	if(@Task='Get_UnsuccessCancelDetails')
+	 begin
+	SELECT Invoice_Number,Invoice_Amount From Invoice_cancel_desc WHERE (Reason ='Payment received') and F2_MIS=0
+	 end
+	if(@Task='Get_CancelDetails')
+	 begin
+         SELECT Invoice_Number,Invoice_Amount From Invoice_cancel_desc WHERE (Reason ='Invoice deleted successfully') and F2_MIS=0
+	 end
+	if(@Task='Get_InvoiceDetails_AsCashID')
+	 begin
+          Select * from invoice where Cash_Ops_ID=@Search1
+	 end
+	     if(@Task='Get_Order_Rejected')
+	 begin
+           Select * from Order_Rejected where EmailStatus=0 or EmailStatus is null
+	 end
+	 	     if(@Task='Get_Order_Invoice_Rejected')
+	 begin
+           Select * from Order_Invoice_Rejected where Order_ID_Rej=@Search1
+	 end
+     if(@Task='Get_AccountDetails')
+	 begin
+	  OPEN SYMMETRIC KEY MSIL_HDFC DECRYPTION BY PASSWORD = 'Hdfc@123456789';
+       Select [Payment_Type]
+         ,CONVERT(NVARCHAR(MAX),DECRYPTBYKEY(CAST(CAST(convert(nvarchar(max),DR_Account_No) AS XML).value('.', 'VARBINARY(MAX)') AS VARBINARY(MAX))))DR_Account_No
+         ,CONVERT(NVARCHAR(MAX),DECRYPTBYKEY(CAST(CAST(convert(nvarchar(max),CR_Account_No) AS XML).value('.', 'VARBINARY(MAX)') AS VARBINARY(MAX))))CR_Account_No from Account_Details
+	  CLOSE SYMMETRIC KEY MSIL_HDFC;
+	 end
+	 if(@Task='Get_CashOPS_PendingCrd')
+	 begin
+	 OPEN SYMMETRIC KEY MSIL_HDFC DECRYPTION BY PASSWORD = 'Hdfc@123456789';
+       Select [Cash_Ops_ID], [FileID], [CashOps_FileType], [NEFT_RTGS_BT_ID],[Virtual_Account], [UTR_No], [Transaction_Amount], [Transaction_status], [Payment_Status], [Attempt], [Cash_Ops_Date], [Cash_Ops_Time], [GEFO_Flag], [GEFO_Date],CONVERT(NVARCHAR(MAX),DECRYPTBYKEY(CAST(CAST(convert(nvarchar(max),DR_Account_No) AS XML).value('.', 'VARBINARY(MAX)') AS VARBINARY(MAX)))) [DR_Account_No],CONVERT(NVARCHAR(MAX),DECRYPTBYKEY(CAST(CAST(convert(nvarchar(max),CR_Account_No) AS XML).value('.', 'VARBINARY(MAX)') AS VARBINARY(MAX)))) [CR_Account_No], [LoginID], [EOD_MailFlag], [DRC_Generation], [FNCR_Virtual_Account], [IFSC_code], [FNCR_code], [FNCR_Name] from CashOps_Upload where (EOD_MailFlag=0 OR EOD_MailFlag IS NULL) and Transaction_status='Pending Credit'
+	 CLOSE SYMMETRIC KEY MSIL_HDFC;
+	end
+	 if(@Task='Get_InvoiceDetailsF2')
+	 begin
+       SELECT Invoice_Number From Invoice WHERE (Invoice_Status = 'PHYSICAL INV REC') and (F2_MIS=0  or F2_MIS='' or F2_MIS is null)
+	end
+	 if(@Task='Get_InvoiceDetailCheck')
+	 begin
+         Select * from Invoice where Invoice_Number=@Search1 and Invoice_Status='PHYSICAL INV REC'
+     end
+	 if(@Task='Get_InvoiceDetails_PayRec')
+	 begin
+        SELECT IMEX_DEAL_NUMBER,Dealer_Code,Invoice_Amount,Invoice_Number,Utr_Number,Payment_Received_Date From Invoice 
+		WHERE (Invoice_Status = 'Payment received on') and  (F1_MIS=0  or F1_MIS='' or F1_MIS is null)  
+	end
+	 if(@Task='Get_StockyardDetails')
+	 begin
+        Select * from Stockyard_Master where IsActive=1
+     end
+	  if(@Task='Get_StockyardDetailsAsPerDO')
+	 begin
+        Select * from Stockyard_Master where IsActive=1 and DO_Number =@Search1 or DO_Number=@Search2
+     end
+		if(@Task='Get_OrderInv_FileMail')
+	 begin
+	  
+            SELECT Cash_ops_Date, I.Utr_Number, O.Dealer_Code, O.Dealer_Destination_Code, O.Dealer_Outlet_Code,
+            C.Transaction_Amount, C.NEFT_RTGS_BT_ID, C.CashOps_FileType, FNCR_Virtual_Account, C.IFSC_code, 
+            O.DO_Number, I.Invoice_Number FROM (CashOps_Upload C INNER JOIN Invoice I ON C.Cash_Ops_ID = I.Cash_Ops_ID)
+            INNER JOIN Order_Desc O ON (C.Cash_Ops_ID = O.Cash_Ops_ID) AND (I.Cash_Ops_ID = O.Cash_Ops_ID)
+            WHERE (I.F3_MIS = 0 or I.F3_MIS is null or I.F3_MIS = '' ) AND (C.Payment_Status = 'CREDIT MSIL') AND O.DO_Number LIKE @Search1+'%' order by I.Utr_Number 
+          
+	  end	
+     if(@Task='Get_SeqNo_FileMail')
+	 begin
+        Select isnull(max(SeqNo),0) as seqNo from File_Mail where File_Mail_Date=convert(varchar(20), getdate(),103) and File_Mail_Name='F3'
+     end
+	if(@Task='Get_FileMail')
+	 begin
+          Select * from File_Mail
+     end
+	if(@Task='Get_cancelDOReports')
+	 begin
+     Select * from CancelDOIn_Reports where CancelDoInFlag=1
+     end
+	if(@Task='Get_PhyReports')
+	 begin
+       Select * from Phy_Reports where PhyFlag=1
+     end
+	if(@Task='Get_EODReport')
+	 begin
+         Select * from EOD_Reports where EODFlag=1
+     end
+	if(@Task='Get_LoginRC')
+	 begin
+          Select * from Login where Record_Chk_Flag=1 
+     end
+	if(@Task='Get_IRFileDetails')
+	 begin
+           Select * from File_Desc where FCC_Mail=0 and FileType='IR' 
+     end
+	if(@Task='Get_MaxCashOpsDetails')
+	 begin
+           Select MAX(isnull(CAST(Cash_Ops_ID AS real),0))+1 AS Cash_Ops_ID from CashOps_Upload 
+     end
+	if(@Task='Get_CashOpsDetails')
+	 begin
+	
+           Select [Cash_Ops_ID], [FileID], [CashOps_FileType], [NEFT_RTGS_BT_ID], [Virtual_Account], [UTR_No], [Transaction_Amount],
+		   [Transaction_status], [Payment_Status], [Attempt], [Cash_Ops_Date], [Cash_Ops_Time], [GEFO_Flag], [GEFO_Date],
+		   [DR_Account_No], [CR_Account_No], [LoginID], [EOD_MailFlag], [DRC_Generation], [FNCR_Virtual_Account], [IFSC_code], [FNCR_code], [FNCR_Name] from CashOps_Upload where UTR_No=@Search1 and Transaction_Amount=@Search2
+
+	 end
+	if(@Task='Get_PaymantStatus')
+	 begin	 
+           Select [Cash_Ops_ID], [FileID], [CashOps_FileType], [NEFT_RTGS_BT_ID], [Virtual_Account], [UTR_No], [Transaction_Amount],
+		   [Transaction_status], [Payment_Status], [Attempt], [Cash_Ops_Date], [Cash_Ops_Time], [GEFO_Flag], [GEFO_Date],
+		  [DR_Account_No], [CR_Account_No], [LoginID], [EOD_MailFlag], [DRC_Generation], [FNCR_Virtual_Account], [IFSC_code], 
+		  [FNCR_code], [FNCR_Name] from CashOps_Upload where (Payment_Status is Null or Payment_Status='' or
+		   Payment_Status='Pending Credit') and (isnull(Attempt,0)<=3 or Attempt <=3)
+ 
+	 end
+    if(@Task='Get_InvoiceSum')
+	 begin
+          SELECT SUM(CAST(Invoice_Amount AS FLOAT)) AS PaymentAmt, Dealer_Name, Transporter_Name,Dealer_Code From 
+		  Invoice WHERE (Utr_Number = @Search1)  and Order_Number=@Search2 GROUP BY Dealer_Name,
+		  Transporter_Name,Dealer_Code
+     end
+	if(@Task='Get_NEFTDetails')
+	 begin
+	 
+      SELECT  PaymentUpload.Product,PaymentUpload.Party_Code,PaymentUpload.Party_Name, PaymentUpload.RemittingBank, CashOps_Upload.UTR_No,CashOps_Upload.Transaction_Amount, 
+	  PaymentUpload.IFSC_Code,CashOps_Upload.Virtual_Account, CashOps_Upload.Payment_Status
+	  FROM CashOps_Upload INNER JOIN PaymentUpload ON CashOps_Upload.NEFT_RTGS_BT_ID = PaymentUpload.Record_ID where 
+	  Cash_Ops_ID=@Search1
+     
+	 end
+    if(@Task='Get_FTDetails')
+	 begin
+	 
+         SELECT  PaymentUpload.Product,PaymentUpload.Party_Code,PaymentUpload.Party_Name,  PaymentUpload.RemittingBank, CashOps_Upload.UTR_No,CashOps_Upload.Transaction_Amount, 
+	  PaymentUpload.IFSC_Code,CashOps_Upload.Virtual_Account, CashOps_Upload.Payment_Status FROM CashOps_Upload INNER JOIN PaymentUpload ON CashOps_Upload.NEFT_RTGS_BT_ID = PaymentUpload.Record_ID 
+		 where Cash_Ops_ID=@Search1
+    
+	 end
+	  if(@Task='Get_FTOrderDetails')
+	 begin
+            SELECT Invoice.IMEX_DEAL_NUMBER, Invoice.Dealer_Code, Invoice.Dealer_Name FROM Order_Desc INNER JOIN Invoice ON
+			Order_Desc.DO_Number = Invoice.Order_Number where DO_Number=@Search1
+			
+
+     end
+	 	  if(@Task='Get_RTGSDetails')
+	 begin
+	 
+         SELECT  PaymentUpload.Product,PaymentUpload.Party_Code,PaymentUpload.Party_Name, PaymentUpload.RemittingBank,  CashOps_Upload.UTR_No,CashOps_Upload.Transaction_Amount, 
+	  PaymentUpload.IFSC_Code,CashOps_Upload.Virtual_Account , CashOps_Upload.Payment_Status FROM CashOps_Upload INNER JOIN 
+		 PaymentUpload ON CashOps_Upload.NEFT_RTGS_BT_ID = PaymentUpload.Record_ID where 
+		 CashOps_Upload.Cash_Ops_ID=@Search1
+		 
+			
+
+     end
+	   if(@Task='Get_DealerDetails')
+	 begin
+         SELECT distinct Order_Desc.Email_IDs,Invoice.Transport_Date,Invoice.Payment_Received_Date,Invoice.IMEX_DEAL_NUMBER,
+		 Order_Desc.DO_Number, Order_Invoice.Order_Inv_Number, Invoice.Invoice_Number, Invoice.Invoice_data_Received_Date, 
+		 Order_Invoice.Order_Inv_Amount,Invoice.Invoice_Amount, Invoice.Physical_Invoice_Received_Date, 
+		 Invoice.Transporter_Code, Invoice.Vehical_ID, Invoice.Invoice_Status,CashOps_Upload.FNCR_name FROM Invoice 
+		 INNER JOIN Order_Invoice ON Invoice.Invoice_Number = Order_Invoice.Order_Inv_Number INNER JOIN Order_Desc ON 
+		 Order_Invoice.Order_ID = Order_Desc.Order_ID inner join CashOps_Upload on 
+		CashOps_Upload.Virtual_Account =Order_Desc.DO_Number WHERE (Order_Desc.Order_Status = 'Payment Received') AND 
+		 (Invoice.Invoice_Status = 'Payment received on') AND (Invoice.Utr_Number = @Search1) and 
+		 Order_Number=@Search2
+
+     end
+	
+	     if(@Task='Get_DealerTransporter')
+	 begin
+          SELECT  Dealer_Name, Transporter_Name From Invoice WHERE (Utr_Number = @Search1) and Order_Number=@Search2
+     end
+	if(@Task='Get_PaymantStatusASper_VirtuAcc')
+	 begin
+	 
+           Select [Cash_Ops_ID], [FileID], [CashOps_FileType], [NEFT_RTGS_BT_ID],[Virtual_Account], [UTR_No], [Transaction_Amount], 
+		   [Transaction_status], [Payment_Status], [Attempt], [Cash_Ops_Date], [Cash_Ops_Time], [GEFO_Flag], [GEFO_Date],
+		   [DR_Account_No], [CR_Account_No], [LoginID], [EOD_MailFlag], [DRC_Generation], [FNCR_Virtual_Account], [IFSC_code], [FNCR_code], [FNCR_Name]
+		   from CashOps_Upload WHERE (Payment_Status = 'CREDIT MSIL') and Virtual_Account=@Search1
+      
+	 end
+	if(@Task='GetOrder_CashOpsDetails')
+	 begin
+	  
+	         SELECT  CashOps_Upload.Cash_Ops_ID, CashOps_Upload.Virtual_Account,CashOps_Upload.UTR_No,Order_Desc.Order_ID,
+		  CashOps_Upload.FNCR_Virtual_Account,* FROM Order_Desc INNER JOIN CashOps_Upload ON Order_Desc.DO_Number = CashOps_Upload.Virtual_Account 
+		   WHERE (CashOps_Upload.Payment_Status = 'CREDIT MSIL') AND (Order_Desc.Order_Status <> 'Payment Received') ORDER BY Order_Desc.Order_ID
+	      
+
+	 	  --OPEN SYMMETRIC KEY MSIL_HDFC DECRYPTION BY PASSWORD = 'Hdfc@123456789';
+     --      SELECT  CashOps_Upload.Cash_Ops_ID, CONVERT(NVARCHAR(MAX),DECRYPTBYKEY(CAST(CAST(convert(nvarchar(max),CashOps_Upload.Virtual_Account) AS XML).value('.', 'VARBINARY(MAX)') AS VARBINARY(MAX)))) as Virtual_Account,CashOps_Upload.UTR_No,Order_Desc.Order_ID,
+		   --CONVERT(NVARCHAR(MAX),DECRYPTBYKEY(CAST(CAST(convert(nvarchar(max),CashOps_Upload.FNCR_Virtual_Account) AS XML).value('.', 'VARBINARY(MAX)') AS VARBINARY(MAX)))) as FNCR_Virtual_Account,* FROM Order_Desc INNER JOIN CashOps_Upload ON Order_Desc.DO_Number = CashOps_Upload.Virtual_Account 
+		   --WHERE (CashOps_Upload.Payment_Status = 'CREDIT MSIL') AND (Order_Desc.Order_Status <> 'Payment Received') ORDER BY Order_Desc.Order_ID
+	    --  CLOSE SYMMETRIC KEY MSIL_HDFC;
+	end
+	if(@Task='GetReportDetails')
+	 begin
+			Select * from Report_Flag where ReportFlag=1
+     end
+	 if(@Task='Get_MaxFileDesc')
+	 begin
+			 SELECT isnull(MAX(CAST(FileID AS real)),0)+1 AS File_ID FROM File_Desc
+     end
+	 if(@Task='Get_RectifyUpdateEr')
+	 begin
+	  (SELECT COUNT(*) AS Inv_Count, Dealer_Name, Dealer_Code, IMEX_DEAL_NUMBER, StepDate, SUM(CAST(Invoice_Amount AS FLOAT)) 
+	  AS Inv_Amt From Invoice WHERE  TradeopsFileID = @Search1 and(StepDate IS NOT NULL) and   F7_MIS = 0 GROUP BY
+	  StepDate, Dealer_Name, Dealer_Code, IMEX_DEAL_NUMBER, StepDate Union select count(*) as Inv_Count, 'TOTAL' as 
+	  Dealer_Name, '' as Dealer_Code, '' as IMEX_DEAL_NUMBER, StepDate, SUM(CAST(Invoice_Amount AS FLOAT)) AS Inv_Amt From 
+	  Invoice WHERE TradeopsFileID = @Search1 and(StepDate IS NOT NULL) and   F7_MIS = 0 group by stepdate) 
+	  order by stepdate ,Dealer_Code desc
+     end
+if(@Task='GetCashOps_INVDetails')
+	 begin
+
+	 declare @TDate varchar(20) =convert(varchar(20), getdate(),20) 
+	 drop table if exists dbo.#temp
+	 drop table if exists dbo.#temp1
+	 SELECT  distinct CashOps_Upload.Virtual_Account ,CashOps_Upload.UTR_no,CashOps_Upload.Cash_Ops_ID,cash_ops_date into #Temp FROM CashOps_Upload INNER JOIN Invoice 
+	 ON CashOps_Upload.Virtual_Account = Invoice.Order_Number WHERE (CashOps_Upload.Payment_Status = 'CREDIT MSIL') and Invoice_Status<>'Payment received on'
+	 ALTER TABLE dbo.#temp ADD ID int IDENTITY(1,1)
+
+	 declare @Count int =(select max(ID) from #temp)
+	while @Count!=0
+	  begin
+		declare @Virtual_Account varchar(50) =(select Virtual_Account from #temp where ID=@Count)
+		declare @Cash_Ops_ID varchar(50) =(select Cash_Ops_ID from #temp where ID=@Count)
+		declare @UTR_No varchar(50) =(select UTR_No from #temp where ID=@Count)
+		drop table if exists dbo.#temp1   Select * into #temp1 from Order_Desc where DO_Number=@Virtual_Account   ALTER TABLE dbo.#temp1 ADD ID int IDENTITY(1,1)
+		declare @CountV int =(select max(ID) from #temp1)
+
+		while @CountV!=0
+		  begin
+		    declare @Order_ID varchar(20)= (select  Order_ID from #temp1 where ID=@CountV )
+		    Update Order_Desc set Order_Status='Payment Received',Cash_Ops_ID=@Cash_Ops_ID where DO_Number= @Virtual_Account 
+            Update Invoice set Utr_Number=@UTR_No ,Invoice_Status='Payment received on',Payment_Received_Date=@TDate,Cash_Ops_ID=@Cash_Ops_ID WHERE  
+		   (Ord_Inv_ID IN (SELECT Order_Invoice.Ord_Inv_ID  FROM Order_Desc INNER JOIN Order_Invoice ON Order_Desc.Order_ID = Order_Invoice.Order_ID WHERE 
+			  Order_Desc.Order_Id = @Order_ID))
+			 set @Countv=@CountV-1
+          end
+		  set @Count=@Count-1
+	  end
+	   select 'Data Updated Successfully'
+	   --select * from #temp1
+	  --select * from #temp
+	 
+	   drop table #Temp
+	    drop table #temp1
+end
+
+END

@@ -1,0 +1,33 @@
+USE [MSIL_HDFC]
+GO
+/****** Object:  StoredProcedure [dbo].[SP_InsertDetails_Audit]    Script Date: 08-09-2026 11:13:55 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROCEDURE [dbo].[SP_InsertDetails_Audit] 
+@Task varchar(100),
+@Search1 varchar(100),
+@Search2 varchar(100),
+@Search3 varchar(100),
+@Search4 varchar(100),
+@Search5 varchar(100),
+@Search6 varchar(100),
+@Search7 varchar(100)
+	
+AS
+BEGIN
+
+	SET NOCOUNT ON;
+	declare @TDate varchar(20) =convert(varchar(20), getdate(),103) 
+	--select @TDate
+	 if(@Task='Insert_MSIL_LoginLogout')
+	 begin
+		declare @ID int =(SELECT isnull(MAX(CAST(logId AS int)),0)+1 AS File_ID FROM MSIL_LoginLogout)
+		  insert into MSIL_LoginLogout (logId, User_id, LoginDate_Time,IPAddress,SessionID,IsActive) 
+		  values(@ID,@Search1,@Search2,@Search5,@Search3,@Search4)
+        select @ID
+	 end 
+
+END
