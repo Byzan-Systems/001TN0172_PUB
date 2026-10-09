@@ -1,7 +1,15 @@
 {
   "ExpandedNodes": [
     "",
+    "\\Local settings (.vs)",
+    "\\Local settings (.vs)\\001TN0172_PUB",
+    "\\Local settings (.vs)\\001TN0172_PUB\\config",
     "\\Setups"
   ],
+<<<<<<< HEAD
+  "SelectedNode": "\\Local settings (.vs)\\001TN0172_PUB\\config",
+=======
+  "SelectedNode": "\\Setups\\UAT_IR__2026-07-28.zip",
+>>>>>>> parent of 132ecdc (setup)
   "PreviewInSolutionExplorer": false
 }
