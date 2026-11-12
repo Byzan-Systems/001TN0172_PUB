@@ -1,0 +1,33 @@
+Please add the following columns in Settings_Server table.
+
+IR_Mail_Time      nvarchar(10)      Checked
+Auto_IR_prcoess   nvarchar(3) Checked
+PMT_Host    varchar(50) Checked
+PMT_Port    varchar(50) Checked
+PMT_UserName      nvarchar(200)     Checked
+PMT_Password      nvarchar(200)     Checked
+PMT_RemoteInFolder      nvarchar(200)     Checked
+PMT_RemoteArchieveFolder      nvarchar(200)     Checked
+PMT_LocalFolder   nvarchar(200)     Checked
+
+
+Please add the  following Column into Table UAM_LoginLogout also check in MSIL Application
+
+IPAddress   varchar(50) Checked
+
+
+Add the DRC Template in server setup
+
+
+settings  added in Web application in Server settings form. - check on Form whether it is added or not.
+
+Please download the Procedures using following link :
+
+https://github.com/Byzan-Systems/001TN0172_PUB/blob/main/Setups/NOV/Database
+
+
+
+
+
+
+
